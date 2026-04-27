@@ -54,6 +54,7 @@ metadata:
   namespace: hermes
   labels:
     app: hermes-sandbox
+    tenant: telegram-team
     platform: telegram
 spec:
   runtimeClassName: kata-clh
@@ -134,7 +135,7 @@ metadata:
 spec:
   selector:
     app: hermes-sandbox
-    platform: telegram
+    tenant: telegram-team
   ports:
     - name: api
       port: 8642

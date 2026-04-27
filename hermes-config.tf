@@ -32,7 +32,30 @@ resource "kubernetes_config_map_v1" "hermes_base_config" {
   depends_on = [kubernetes_namespace_v1.hermes]
 }
 
-# NetworkPolicy for Hermes sandbox pods
+# Default deny all ingress between sandbox pods — each tenant is isolated
+resource "kubernetes_network_policy_v1" "hermes_deny_inter_pod" {
+  metadata {
+    name      = "deny-inter-pod-ingress"
+    namespace = local.hermes_namespace
+  }
+
+  spec {
+    pod_selector {
+      match_labels = {
+        app = "hermes-sandbox"
+      }
+    }
+
+    policy_types = ["Ingress"]
+
+    # No ingress rules = deny all ingress from other pods
+    # (k8s services like kubelet health checks still work)
+  }
+
+  depends_on = [kubernetes_namespace_v1.hermes]
+}
+
+# Egress policy for sandbox pods — only LiteLLM, DNS, and HTTPS
 resource "kubernetes_network_policy_v1" "hermes_sandbox_egress" {
   metadata {
     name      = "hermes-sandbox-egress"
@@ -48,7 +71,6 @@ resource "kubernetes_network_policy_v1" "hermes_sandbox_egress" {
 
     policy_types = ["Egress"]
 
-    # Allow traffic to LiteLLM
     egress {
       to {
         namespace_selector {
@@ -63,7 +85,6 @@ resource "kubernetes_network_policy_v1" "hermes_sandbox_egress" {
       }
     }
 
-    # Allow DNS
     egress {
       to {
         namespace_selector {}
@@ -78,7 +99,6 @@ resource "kubernetes_network_policy_v1" "hermes_sandbox_egress" {
       }
     }
 
-    # Allow HTTPS outbound (for messaging platforms, package installs)
     egress {
       to {
         ip_block {

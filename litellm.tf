@@ -130,7 +130,8 @@ resource "helm_release" "litellm" {
           }
         ]
         litellm_settings = {
-          callbacks = ["prometheus"]
+          modify_params = true
+          callbacks     = ["prometheus"]
         }
       }
 

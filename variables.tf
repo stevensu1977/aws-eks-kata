@@ -68,3 +68,16 @@ variable "hermes_model_default" {
   type        = string
   default     = "claude-opus-4-6"
 }
+
+variable "hermes_tenants" {
+  description = "Map of tenant name → config. Each tenant gets an isolated sandbox with its own LiteLLM API key."
+  type = map(object({
+    platform       = string
+    max_budget     = optional(number, 10)
+    rpm_limit      = optional(number, 30)
+    tpm_limit      = optional(number, 100000)
+    models         = optional(list(string), ["claude-opus-4-6"])
+    budget_duration = optional(string, "30d")
+  }))
+  default = {}
+}
