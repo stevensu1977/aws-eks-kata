@@ -256,8 +256,8 @@ spec:
 项目基于Terraform管理全部基础设施。`install.sh`封装了Terraform和Helm的执行流程，创建的资源包括：VPC及子网、EKS集群及core节点组、Karpenter（含c8i/m8i EC2NodeClass和NodePool）、Kata Containers（kata-deploy）、LiteLLM Proxy（含Pod Identity配置）、Prometheus和Grafana。
 
 ```bash
-git clone https://github.com/hitsub2/aws-eks-kata
-cd aws-eks-kata
+git clone https://github.com/hitsub2/aws-eks-kata-for-agents
+cd aws-eks-kata-for-agents
 chmod +x install.sh
 ./install.sh
 ```
@@ -526,4 +526,4 @@ Hermes Agent作为新一代AI Agent框架，带来了自进化技能、跨会话
 
 在Hypervisor选型上，我们推荐Cloud Hypervisor作为默认选择——它提供与QEMU相同的功能完备性（virtio-fs、热插拔），同时具备约2.5倍的启动速度优势和3-6倍的内存开销优势。对于需要极致沙箱密度的场景，Firecracker以额外的运维复杂度为代价，提供~125ms启动和~5MB/VM的极低开销。gVisor因syscall兼容性风险，不推荐用于运行任意代码的AI Agent沙箱。
 
-完整的Terraform代码和配置见：[aws-eks-kata](https://github.com/hitsub2/aws-eks-kata)
+完整的Terraform代码和配置见：[aws-eks-kata-for-agents](https://github.com/hitsub2/aws-eks-kata-for-agents)

@@ -149,8 +149,8 @@ aws service-quotas get-service-quota \
 ### 4.1 克隆仓库
 
 ```bash
-git clone https://github.com/hitsub2/aws-eks-kata
-cd aws-eks-kata
+git clone https://github.com/hitsub2/aws-eks-kata-for-agents
+cd aws-eks-kata-for-agents
 ```
 
 ### 4.2 一键部署（推荐）
