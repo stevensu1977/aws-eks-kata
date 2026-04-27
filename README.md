@@ -1,8 +1,8 @@
-# Hermes Agent on Amazon EKS with Kata Containers
+# AI Agent Sandbox on Amazon EKS with Kata Containers
 
-Deploy [Hermes Agent](https://github.com/nousresearch/hermes-agent) on Amazon EKS with VM-level sandbox isolation via Kata Containers.
+Deploy [Hermes Agent](https://github.com/nousresearch/hermes-agent) or [OpenClaw](https://github.com/openclaw/openclaw) on Amazon EKS with VM-level sandbox isolation via Kata Containers.
 
-Based on the [OpenClaw on EKS](https://github.com/hitsub2/openclaw-on-eks) architecture, adapted for Hermes Agent. Source: [aws-eks-kata](https://github.com/hitsub2/aws-eks-kata).
+Supports **multi-agent-runtime, multi-tenant** deployment — run both Hermes Agent and OpenClaw sandboxes side by side with per-tenant network isolation and LiteLLM API key management.
 
 ## Architecture
 
@@ -17,11 +17,14 @@ Based on the [OpenClaw on EKS](https://github.com/hitsub2/openclaw-on-eks) archi
 │  │  LiteLLM      │  │  ┌────────────────────────┐ │ │
 │  │  Prometheus   │  │  │  Kata VM (CLH/QEMU)    │ │ │
 │  │  Grafana      │  │  │  ┌──────────────────┐  │ │ │
-│  │               │  │  │  │  Hermes Agent    │  │ │ │
-│  │               │  │  │  │  Gateway + API   │  │ │ │
-│  │               │  │  │  │  Port 8642/9119  │  │ │ │
-│  │               │  │  │  └──────────────────┘  │ │ │
-│  │               │  │  │  EBS Vol (/opt/data)   │ │ │
+│  │               │  │  │  │ Hermes Agent    │  │ │ │
+│  │               │  │  │  │ Port 8642/9119  │  │ │ │
+│  │               │  │  │  └─────────────────┘  │ │ │
+│  │               │  │  │  ┌─────────────────┐  │ │ │
+│  │               │  │  │  │ OpenClaw        │  │ │ │
+│  │               │  │  │  │ Port 19001      │  │ │ │
+│  │               │  │  │  └─────────────────┘  │ │ │
+│  │               │  │  │  EBS Vol (per-pod)    │ │ │
 │  │               │  │  └────────────────────────┘ │ │
 │  └──────────────┘  └──────────────────────────────┘ │
 └─────────────────────────────────────────────────────┘
@@ -39,23 +42,24 @@ Based on the [OpenClaw on EKS](https://github.com/hitsub2/openclaw-on-eks) archi
 | **Karpenter** | Auto-provision c8i/m8i nodes with nested KVM for Kata VMs |
 | **Kata Containers** | VM-level isolation per sandbox pod (QEMU + CLH) |
 | **LiteLLM** | Unified model gateway (Bedrock, SiliconFlow, etc.) |
-| **Hermes Agent** | Self-improving AI agent with multi-platform messaging |
+| **Hermes Agent** | AI agent with multi-platform messaging (gateway run) |
+| **OpenClaw** | AI agent with WebSocket gateway (gateway mode) |
 | **Prometheus + Grafana** | Observability stack |
 
-## Key Differences from OpenClaw Version
+## Supported Agent Runtimes
 
-| Aspect | OpenClaw | Hermes Agent |
+| Aspect | Hermes Agent | OpenClaw |
 |---|---|---|
-| Agent image | `ghcr.io/openclaw/openclaw` | `nousresearch/hermes-agent` |
-| Data path | `/home/node/.openclaw` | `/opt/data` |
-| Entry command | `node dist/index.js gateway` | `gateway run` |
-| Ports | 18789/18790 | 8642 (API) / 9119 (Dashboard) |
-| Health check | None | `/health` on port 8642 |
-| RuntimeClass | `kata-qemu` | `kata-clh` (recommended) |
-| Operator CRD | OpenClaw Sandbox CRD | Native K8s Pod/Service |
-| Model config | JSON in container | `config.yaml` via ConfigMap |
-| Messaging | Per-platform containers | Single gateway, multi-platform |
-| User ID | 1000 | 10000 |
+| Image | `nousresearch/hermes-agent` | `ghcr.io/openclaw/openclaw` |
+| Data path | `/opt/data` | `/home/node/.openclaw` |
+| Entry command | `gateway run` (via entrypoint) | `node openclaw.mjs gateway` |
+| Gateway port | 8642 (API) / 9119 (Dashboard) | 19001 (WebSocket) |
+| Config format | `config.yaml` (YAML) | `openclaw.json` (JSON) |
+| Model config | `model.default` + `model.base_url` | `models.providers` + `models.default` |
+| User ID | 0 (drops to 10000 via gosu) | 1000 (node) |
+| Channels | Feishu, Slack, Telegram, Discord, WhatsApp | Feishu, Slack, Telegram, Discord, WhatsApp, iMessage, Line, Matrix, Teams, + 13 more |
+
+Both runtimes share the same infrastructure: EKS, Karpenter, Kata, LiteLLM, NetworkPolicy, and multi-tenant isolation.
 
 ## Prerequisites
 
@@ -107,54 +111,37 @@ kubectl run -n litellm test --rm -i --restart=Never \
 
 ### Deploy a Sandbox
 
-**Feishu:**
+#### Hermes Agent
 
 ```bash
 cd examples
-export FEISHU_APP_ID="cli_..."
-export FEISHU_APP_SECRET="..."
-
+# Edit hermes-feishu-sandbox.yaml — replace YOUR_LITELLM_API_KEY and platform credentials
 sed -i.bak \
   -e "s/YOUR_LITELLM_API_KEY/${LITELLM_API_KEY}/g" \
   -e "s/YOUR_FEISHU_APP_ID/${FEISHU_APP_ID}/g" \
   -e "s/YOUR_FEISHU_APP_SECRET/${FEISHU_APP_SECRET}/g" \
-  -e "s/YOUR_API_SERVER_KEY/$(openssl rand -hex 32)/g" \
   hermes-feishu-sandbox.yaml
 
 kubectl apply -f hermes-feishu-sandbox.yaml
 ```
 
-**Slack:**
+Also available: `hermes-slack-sandbox.yaml`, `hermes-telegram-sandbox.yaml`
+
+#### OpenClaw
 
 ```bash
 cd examples
-export SLACK_BOT_TOKEN="xoxb-..."
-export SLACK_APP_TOKEN="xapp-..."
-
+# Edit openclaw-feishu-sandbox.yaml — replace YOUR_LITELLM_API_KEY and platform credentials
 sed -i.bak \
   -e "s/YOUR_LITELLM_API_KEY/${LITELLM_API_KEY}/g" \
-  -e "s/YOUR_BOT_TOKEN/${SLACK_BOT_TOKEN}/g" \
-  -e "s/YOUR_APP_TOKEN/${SLACK_APP_TOKEN}/g" \
-  -e "s/YOUR_API_SERVER_KEY/$(openssl rand -hex 32)/g" \
-  hermes-slack-sandbox.yaml
+  -e "s/YOUR_FEISHU_APP_ID/${FEISHU_APP_ID}/g" \
+  -e "s/YOUR_FEISHU_APP_SECRET/${FEISHU_APP_SECRET}/g" \
+  openclaw-feishu-sandbox.yaml
 
-kubectl apply -f hermes-slack-sandbox.yaml
+kubectl apply -f openclaw-feishu-sandbox.yaml
 ```
 
-**Telegram:**
-
-```bash
-cd examples
-export TELEGRAM_BOT_TOKEN="..."
-
-sed -i.bak \
-  -e "s/YOUR_LITELLM_API_KEY/${LITELLM_API_KEY}/g" \
-  -e "s/YOUR_TELEGRAM_BOT_TOKEN/${TELEGRAM_BOT_TOKEN}/g" \
-  -e "s/YOUR_API_SERVER_KEY/$(openssl rand -hex 32)/g" \
-  hermes-telegram-sandbox.yaml
-
-kubectl apply -f hermes-telegram-sandbox.yaml
-```
+Also available: `openclaw-slack-sandbox.yaml`, `openclaw-telegram-sandbox.yaml`
 
 ### Verify
 
@@ -196,16 +183,6 @@ Or set default at deploy time:
 
 See [docs/isolation-backends-analysis.md](docs/isolation-backends-analysis.md) for detailed comparison including Firecracker and gVisor.
 
-## Migrating from OpenClaw
-
-Hermes Agent includes built-in migration tooling:
-
-```bash
-kubectl exec -it hermes-feishu-sandbox -n hermes -- hermes claw migrate
-```
-
-This imports SOUL.md, memories, skills, messaging config, and API keys from an existing OpenClaw installation.
-
 ## Monitoring
 
 ```bash
@@ -219,8 +196,7 @@ kubectl port-forward -n monitoring svc/grafana 3000:80
 ## Cleanup
 
 ```bash
-kubectl delete -f examples/ --ignore-not-found=true
-terraform destroy
+./cleanup.sh --cluster-name my-hermes --region us-west-2
 ```
 
 ## File Structure
@@ -246,14 +222,20 @@ terraform destroy
 ├── monitoring.tf            # Prometheus + Grafana
 ├── install.sh               # Deployment script
 ├── cleanup.sh               # Teardown script
+├── hermes-tenants.tf        # Multi-tenant key provisioning
 ├── examples/
 │   ├── hermes-feishu-sandbox.yaml
 │   ├── hermes-slack-sandbox.yaml
 │   ├── hermes-telegram-sandbox.yaml
+│   ├── openclaw-feishu-sandbox.yaml
+│   ├── openclaw-slack-sandbox.yaml
+│   ├── openclaw-telegram-sandbox.yaml
 │   └── grafana/
 │       └── grafana_dashboard.json
 └── docs/
     ├── blog-hermes-agent.md
     ├── blog.md
+    ├── deployment-guide.md
+    ├── multi-tenancy-guide.md
     └── isolation-backends-analysis.md
 ```
