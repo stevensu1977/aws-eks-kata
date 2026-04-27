@@ -1,8 +1,8 @@
 # AI Agent Sandbox on Amazon EKS with Kata Containers
 
-Deploy [Hermes Agent](https://github.com/nousresearch/hermes-agent) or [OpenClaw](https://github.com/openclaw/openclaw) on Amazon EKS with VM-level sandbox isolation via Kata Containers.
+Deploy [Hermes Agent](https://github.com/nousresearch/hermes-agent), [OpenClaw](https://github.com/openclaw/openclaw), or [RayClaw](https://github.com/rayclaw/rayclaw) on Amazon EKS with VM-level sandbox isolation via Kata Containers.
 
-Supports **multi-agent-runtime, multi-tenant** deployment — run both Hermes Agent and OpenClaw sandboxes side by side with per-tenant network isolation and LiteLLM API key management.
+Supports **multi-agent-runtime, multi-tenant** deployment — run Hermes Agent, OpenClaw, and RayClaw sandboxes side by side with per-tenant network isolation and LiteLLM API key management.
 
 ## Architecture
 
@@ -24,6 +24,10 @@ Supports **multi-agent-runtime, multi-tenant** deployment — run both Hermes Ag
 │  │               │  │  │  │ OpenClaw        │  │ │ │
 │  │               │  │  │  │ Port 19001      │  │ │ │
 │  │               │  │  │  └─────────────────┘  │ │ │
+│  │               │  │  │  ┌─────────────────┐  │ │ │
+│  │               │  │  │  │ RayClaw         │  │ │ │
+│  │               │  │  │  │ Port 10962      │  │ │ │
+│  │               │  │  │  └─────────────────┘  │ │ │
 │  │               │  │  │  EBS Vol (per-pod)    │ │ │
 │  │               │  │  └────────────────────────┘ │ │
 │  └──────────────┘  └──────────────────────────────┘ │
@@ -44,22 +48,23 @@ Supports **multi-agent-runtime, multi-tenant** deployment — run both Hermes Ag
 | **LiteLLM** | Unified model gateway (Bedrock, SiliconFlow, etc.) |
 | **Hermes Agent** | AI agent with multi-platform messaging (gateway run) |
 | **OpenClaw** | AI agent with WebSocket gateway (gateway mode) |
+| **RayClaw** | Rust-based AI agent with multi-channel support (private ECR image) |
 | **Prometheus + Grafana** | Observability stack |
 
 ## Supported Agent Runtimes
 
-| Aspect | Hermes Agent | OpenClaw |
-|---|---|---|
-| Image | `nousresearch/hermes-agent` | `ghcr.io/openclaw/openclaw` |
-| Data path | `/opt/data` | `/home/node/.openclaw` |
-| Entry command | `gateway run` (via entrypoint) | `node openclaw.mjs gateway` |
-| Gateway port | 8642 (API) / 9119 (Dashboard) | 19001 (WebSocket) |
-| Config format | `config.yaml` (YAML) | `openclaw.json` (JSON) |
-| Model config | `model.default` + `model.base_url` | `models.providers` + `models.default` |
-| User ID | 0 (drops to 10000 via gosu) | 1000 (node) |
-| Channels | Feishu, Slack, Telegram, Discord, WhatsApp | Feishu, Slack, Telegram, Discord, WhatsApp, iMessage, Line, Matrix, Teams, + 13 more |
+| Aspect | Hermes Agent | OpenClaw | RayClaw |
+|---|---|---|---|
+| Image | `nousresearch/hermes-agent` | `ghcr.io/openclaw/openclaw` | Private ECR (self-built) |
+| Data path | `/opt/data` | `/home/node/.openclaw` | `/data` |
+| Entry command | `gateway run` (via entrypoint) | `node openclaw.mjs gateway` | `rayclaw` (single binary) |
+| Gateway port | 8642 (API) / 9119 (Dashboard) | 19001 (WebSocket) | 10962 (Web) |
+| Config format | `config.yaml` (YAML) | `openclaw.json` (JSON) | `rayclaw.config.yaml` (YAML) |
+| Model config | `model.default` + `model.base_url` | `models.providers` + `models.default` | `llm_provider` + `llm_base_url` |
+| User ID | 0 (drops to 10000 via gosu) | 1000 (node) | 1000 (rayclaw) |
+| Channels | Feishu, Slack, Telegram, Discord, WhatsApp | Feishu, Slack, Telegram, Discord, WhatsApp, iMessage, Line, Matrix, Teams, + 13 more | Feishu, Slack, Telegram, Discord, WeChat, Web |
 
-Both runtimes share the same infrastructure: EKS, Karpenter, Kata, LiteLLM, NetworkPolicy, and multi-tenant isolation.
+All three runtimes share the same infrastructure: EKS, Karpenter, Kata, LiteLLM, NetworkPolicy, and multi-tenant isolation.
 
 ## Prerequisites
 
@@ -143,6 +148,29 @@ kubectl apply -f openclaw-feishu-sandbox.yaml
 
 Also available: `openclaw-slack-sandbox.yaml`, `openclaw-telegram-sandbox.yaml`
 
+#### RayClaw
+
+RayClaw requires building the image from source and pushing to your private ECR (no public image available):
+
+```bash
+# Clone RayClaw source and build to ECR
+git clone https://github.com/rayclaw/rayclaw ~/rayclaw
+./scripts/build-rayclaw-ecr.sh --source ~/rayclaw --region us-west-2
+
+# Update the example YAML with your ECR URI and credentials
+cd examples
+sed -i.bak \
+  -e "s|ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/rayclaw:latest|YOUR_ECR_URI|g" \
+  -e "s/YOUR_LITELLM_API_KEY/${LITELLM_API_KEY}/g" \
+  -e "s/YOUR_FEISHU_APP_ID/${FEISHU_APP_ID}/g" \
+  -e "s/YOUR_FEISHU_APP_SECRET/${FEISHU_APP_SECRET}/g" \
+  rayclaw-feishu-sandbox.yaml
+
+kubectl apply -f rayclaw-feishu-sandbox.yaml
+```
+
+Also available: `rayclaw-slack-sandbox.yaml`, `rayclaw-telegram-sandbox.yaml`
+
 ### Verify
 
 ```bash
@@ -223,6 +251,8 @@ kubectl port-forward -n monitoring svc/grafana 3000:80
 ├── install.sh               # Deployment script
 ├── cleanup.sh               # Teardown script
 ├── hermes-tenants.tf        # Multi-tenant key provisioning
+├── scripts/
+│   └── build-rayclaw-ecr.sh   # Build RayClaw image → private ECR
 ├── examples/
 │   ├── hermes-feishu-sandbox.yaml
 │   ├── hermes-slack-sandbox.yaml
@@ -230,6 +260,9 @@ kubectl port-forward -n monitoring svc/grafana 3000:80
 │   ├── openclaw-feishu-sandbox.yaml
 │   ├── openclaw-slack-sandbox.yaml
 │   ├── openclaw-telegram-sandbox.yaml
+│   ├── rayclaw-feishu-sandbox.yaml
+│   ├── rayclaw-slack-sandbox.yaml
+│   ├── rayclaw-telegram-sandbox.yaml
 │   └── grafana/
 │       └── grafana_dashboard.json
 └── docs/
