@@ -66,5 +66,5 @@ variable "hermes_agent_image" {
 variable "hermes_model_default" {
   description = "Default model for Hermes Agent (via LiteLLM)"
   type        = string
-  default     = "openai/claude-opus-4-6"
+  default     = "claude-opus-4-6"
 }

@@ -20,7 +20,7 @@ resource "helm_release" "kata_deploy" {
         effect   = "NoSchedule"
       }]
       image = {
-        reference = "public.ecr.aws/t6v6o5d5/kube-prometheus:kata-deploy-3.27.0"
+        reference = "quay.io/kata-containers/kata-deploy"
       }
       shims = {
         disableAll = true

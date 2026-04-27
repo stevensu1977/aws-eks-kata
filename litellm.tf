@@ -16,15 +16,8 @@ resource "random_password" "litellm_master_key" {
   special = false
 }
 
-resource "kubernetes_secret_v1" "litellm_masterkey" {
-  metadata {
-    name      = "litellm-masterkey"
-    namespace = kubernetes_namespace_v1.litellm.metadata[0].name
-  }
-
-  data = {
-    masterkey = "sk-${random_password.litellm_master_key.result}"
-  }
+locals {
+  litellm_master_key = "sk-${random_password.litellm_master_key.result}"
 }
 
 # IAM Policy for Bedrock access
@@ -98,13 +91,13 @@ resource "aws_eks_pod_identity_association" "litellm" {
 # LiteLLM Helm release
 resource "helm_release" "litellm" {
   name       = "litellm"
-  repository = "oci://ghcr.io/berriai/litellm"
+  repository = "oci://ghcr.io/berriai"
   chart      = "litellm-helm"
   namespace  = kubernetes_namespace_v1.litellm.metadata[0].name
 
   values = [
     yamlencode({
-      masterkey = kubernetes_secret_v1.litellm_masterkey.data.masterkey
+      masterkey = local.litellm_master_key
 
       serviceAccount = {
         create = false

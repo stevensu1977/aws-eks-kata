@@ -62,13 +62,16 @@ resource "helm_release" "karpenter" {
     })
   ]
 
-  depends_on = [module.karpenter]
+  depends_on = [
+    module.karpenter,
+    module.eks_blueprints_addons,
+  ]
 }
 
 # EC2NodeClass for Kata nodes (nested KVM on c8i/m8i)
 resource "kubectl_manifest" "kata_node_class" {
   yaml_body = yamlencode({
-    apiVersion = "karpenter.sh/v1"
+    apiVersion = "karpenter.k8s.aws/v1"
     kind       = "EC2NodeClass"
     metadata = {
       name = "kata-nested-kvm"
@@ -149,7 +152,7 @@ resource "kubectl_manifest" "kata_node_pool" {
             }
           ]
           nodeClassRef = {
-            group = "karpenter.sh"
+            group = "karpenter.k8s.aws"
             kind  = "EC2NodeClass"
             name  = "kata-nested-kvm"
           }

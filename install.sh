@@ -30,15 +30,84 @@ echo "Region:       $REGION"
 echo "Cluster Name: $CLUSTER_NAME"
 echo "============================================"
 
-# Check prerequisites
+# Auto-install prerequisites if missing
+install_aws_cli() {
+  echo ">>> Installing AWS CLI v2..."
+  curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o /tmp/awscliv2.zip
+  unzip -qo /tmp/awscliv2.zip -d /tmp
+  sudo /tmp/aws/install --update
+  rm -rf /tmp/aws /tmp/awscliv2.zip
+}
+
+install_kubectl() {
+  echo ">>> Installing kubectl..."
+  local arch
+  arch=$(uname -m)
+  case "$arch" in
+    x86_64)  arch="amd64" ;;
+    aarch64) arch="arm64" ;;
+  esac
+  curl -fsSLO "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release/stable.txt)/bin/linux/${arch}/kubectl"
+  chmod +x kubectl
+  sudo mv kubectl /usr/local/bin/
+}
+
+install_terraform() {
+  echo ">>> Installing Terraform..."
+  local arch
+  arch=$(uname -m)
+  case "$arch" in
+    x86_64)  arch="amd64" ;;
+    aarch64) arch="arm64" ;;
+  esac
+  local version="1.12.1"
+  curl -fsSL "https://releases.hashicorp.com/terraform/${version}/terraform_${version}_linux_${arch}.zip" -o /tmp/terraform.zip
+  unzip -qo /tmp/terraform.zip -d /tmp
+  sudo mv /tmp/terraform /usr/local/bin/
+  rm -f /tmp/terraform.zip
+}
+
+install_helm() {
+  echo ">>> Installing Helm v3..."
+  curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+}
+
+declare -A INSTALLERS=(
+  [aws]=install_aws_cli
+  [kubectl]=install_kubectl
+  [terraform]=install_terraform
+  [helm]=install_helm
+)
+
+MISSING=()
 for cmd in aws kubectl terraform helm; do
   if ! command -v "$cmd" &> /dev/null; then
-    echo "ERROR: $cmd is required but not installed."
-    exit 1
+    MISSING+=("$cmd")
   fi
 done
 
+if [[ ${#MISSING[@]} -gt 0 ]]; then
+  echo "Missing tools: ${MISSING[*]}"
+  read -p "Auto-install them? (y/N) " -n 1 -r
+  echo
+  if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo "Please install manually: ${MISSING[*]}"
+    exit 1
+  fi
+  for cmd in "${MISSING[@]}"; do
+    ${INSTALLERS[$cmd]}
+    if ! command -v "$cmd" &> /dev/null; then
+      echo "ERROR: Failed to install $cmd"
+      exit 1
+    fi
+    echo "  $cmd installed: $(command -v $cmd)"
+  done
+fi
+
 echo "All prerequisites satisfied."
+for cmd in aws kubectl terraform helm; do
+  echo "  $cmd: $($cmd version --client 2>/dev/null || $cmd --version 2>/dev/null | head -1)"
+done
 
 # Terraform init
 echo ""
