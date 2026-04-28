@@ -76,7 +76,7 @@ All three runtimes share the same infrastructure: EKS, Karpenter, Kata, LiteLLM,
 ## Quick Start
 
 ```bash
-git clone https://github.com/hitsub2/aws-eks-kata-for-agents
+git clone https://github.com/stevensu1977/aws-eks-kata-for-agents
 cd aws-eks-kata-for-agents
 chmod +x install.sh
 ./install.sh

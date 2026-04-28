@@ -163,8 +163,8 @@ Helm v3.x
 ### Step 1：克隆仓库并执行部署脚本
 项目基于Terraform管理全部基础设施。`install.sh`封装了Terraform和Helm的执行流程，创建的资源包括：VPC及子网、EKS集群及core节点组、Karpenter（含裸金属EC2NodeClass和NodePool）、Kata Containers（kata-deploy）、LiteLLM Proxy（含Pod Identity配置）、Prometheus和Grafana。
 
-git clone https://github.com/hitsub2/openclaw-on-eks
-cd openclaw-on-eks
+git clone https://github.com/stevensu1977/aws-eks-kata-for-agents
+cd aws-eks-kata-for-agents
 chmod +x install.sh
 ./install.sh
 支持自定义Region和集群名称：

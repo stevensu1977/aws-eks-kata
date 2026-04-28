@@ -59,7 +59,7 @@ locals {
 
   tags = {
     Blueprint  = local.name
-    GithubRepo = "github.com/hitsub2/aws-eks-kata-for-agents"
+    GithubRepo = "github.com/stevensu1977/aws-eks-kata-for-agents"
     Workload   = "hermes-kata"
   }
 }
